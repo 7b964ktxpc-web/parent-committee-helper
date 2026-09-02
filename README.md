@@ -29,7 +29,7 @@ vercel
 3. На https://vercel.com/new выберите этот репозиторий.
 4. В разделе **Environment Variables** добавьте:
    - `OPENROUTER_API_KEY` — ваш ключ OpenRouter (https://openrouter.ai/keys).
-   - `OPENROUTER_MODEL` — (опционально) модель, по умолчанию `meta-llama/llama-4-maverick:free`.
+   - `OPENROUTER_MODEL` — (опционально) модель. Если не задать, приложение само переключается по бесплатным моделям.
 5. Нажмите **Deploy**.
 
 Vercel сам подхватит `api/chat.js` как serverless-функцию и развернёт приложение.
@@ -42,14 +42,19 @@ Vercel сам подхватит `api/chat.js` как serverless-функцию 
 
 ## Какая модель
 
-По умолчанию: **OpenRouter `meta-llama/llama-4-maverick:free`** (бесплатная).
+По умолчанию: **OpenRouter бесплатные модели** (авто-fallback).
 
-Доступные бесплатные модели на OpenRouter:
+Приложение пробует модели по очереди:
+- `poolside/laguna-s-2.1:free`
+- `nousresearch/hermes-3-llama-3.1-405b:free`
+- `mistralai/mistral-7b-instruct:free`
 - `meta-llama/llama-4-maverick:free`
 - `google/gemini-2.0-flash-exp:free`
-- `nousresearch/hermes-3-llama-3.1-405b:free`
+- `deepseek/deepseek-r1-0528:free`
 
-Можно изменить переменной окружения `OPENROUTER_MODEL` на любую доступную у вас модель. Без ключа приложение работает в локальном режиме на простых эвристиках.
+Если одна модель недоступна или rate-limited — автоматически пробует следующую.
+
+Можно задать конкретную модель переменной `OPENROUTER_MODEL`. Без ключа приложение работает в локальном режиме на простых эвристиках.
 
 ## Что умеет
 

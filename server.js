@@ -7,9 +7,29 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const API_MODEL = process.env.OPENROUTER_MODEL || 'nousresearch/hermes-3-llama-3.1-405b:free';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || '';
 const API_HOST = 'openrouter.ai';
 const API_PATH = '/api/v1/chat/completions';
+
+const FREE_MODELS = [
+  'poolside/laguna-s-2.1:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'mistralai/mistral-7b-instruct:free',
+  'meta-llama/llama-4-maverick:free',
+  'google/gemini-2.0-flash-exp:free',
+  'deepseek/deepseek-r1-0528:free'
+];
+
+function pickModel() {
+  if (OPENROUTER_MODEL) return OPENROUTER_MODEL;
+  return FREE_MODELS[0];
+}
+
+function isRetryableError(err) {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  return msg.includes('model_not_found') || msg.includes('decommissioned') || msg.includes('unavailable for free') || msg.includes('rate-limited') || msg.includes('429') || err.code === 429 || err.code === 404 || err.code === 400;
+}
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -66,54 +86,82 @@ app.post('/api/chat', async (req, res) => {
       return res.json({ reply });
     }
 
-    const payload = JSON.stringify({
-      model: API_MODEL,
-      temperature: 0.7,
-      messages: [
-        { role: 'system', content: buildSystemPrompt(profile || {}) },
-        ...messages
-      ]
-    });
+    const systemPrompt = buildSystemPrompt(profile || {});
+    const contents = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
 
-    const options = {
-      hostname: API_HOST,
-      port: 443,
-      path: API_PATH,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://parent-committee-helper.vercel.app',
-        'X-Title': 'Parent Committee Helper',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
+    const modelsToTry = OPENROUTER_MODEL ? [OPENROUTER_MODEL] : FREE_MODELS;
+    let lastErr = null;
 
-    const reqApi = https.request(options, (resp) => {
-      let data = '';
-      resp.on('data', chunk => { data += chunk; });
-      resp.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.error) {
-            console.error('API error:', parsed.error);
-            return res.status(502).json({ error: 'API недоступен' });
-          }
-          const reply = parsed.choices?.[0]?.message?.content || '';
-          res.json({ reply });
-        } catch (e) {
-          console.error('Parse error', e, data);
-          res.status(502).json({ error: 'API недоступен' });
+    for (const model of modelsToTry) {
+      const payload = JSON.stringify({
+        contents,
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1024
         }
       });
-    });
 
-    reqApi.on('error', (e) => {
-      console.error('Request error', e);
-      res.status(502).json({ error: 'API недоступен' });
-    });
-    reqApi.write(payload);
-    reqApi.end();
+      const options = {
+        hostname: API_HOST,
+        port: 443,
+        path: `/v1beta/models/${model}:generateContent?key=${OPENROUTER_API_KEY}`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        }
+      };
+
+      try {
+        const reply = await new Promise((resolve, reject) => {
+          const reqApi = https.request(options, (resp) => {
+            let data = '';
+            resp.on('data', chunk => { data += chunk; });
+            resp.on('end', () => {
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.error) {
+                  console.error('API error:', parsed.error);
+                  return reject(new Error(JSON.stringify(parsed.error)));
+                }
+                const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                resolve(text);
+              } catch (e) {
+                console.error('Parse error', e, data);
+                reject(e);
+              }
+            });
+          });
+
+          reqApi.on('error', (e) => {
+            console.error('Request error', e);
+            reject(e);
+          });
+
+          reqApi.write(payload);
+          reqApi.end();
+        });
+
+        return res.json({ reply: reply || 'Что-то не получилось ответить. Попробуй ещё раз.' });
+      } catch (err) {
+        lastErr = err;
+        console.error(`Model ${model} failed:`, err.message || err);
+        if (!isRetryableError(err)) {
+          break;
+        }
+      }
+    }
+
+    console.error('All models failed:', lastErr?.message || lastErr);
+    res.status(502).json({ error: 'API недоступен' });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Внутренняя ошибка' });
