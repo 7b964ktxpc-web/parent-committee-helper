@@ -6,8 +6,10 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const API_KEY = process.env.OPENAI_API_KEY || '';
-const API_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const XAI_API_KEY = process.env.XAI_API_KEY || '';
+const API_MODEL = process.env.XAI_MODEL || 'grok-2-latest';
+const API_HOST = 'api.x.ai';
+const API_PATH = '/v1/chat/completions';
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -57,7 +59,7 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
 
-    if (!API_KEY) {
+    if (!XAI_API_KEY) {
       const lastUser = [...messages].reverse().find(m => m.role === 'user');
       const fallback = lastUser ? lastUser.content : '';
       const reply = heuristicReply(fallback, profile);
@@ -74,13 +76,13 @@ app.post('/api/chat', async (req, res) => {
     });
 
     const options = {
-      hostname: 'api.openai.com',
+      hostname: API_HOST,
       port: 443,
-      path: '/v1/chat/completions',
+      path: API_PATH,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
+        'Authorization': `Bearer ${XAI_API_KEY}`,
         'Content-Length': Buffer.byteLength(payload)
       }
     };
@@ -136,16 +138,15 @@ function heuristicReply(userText, profile) {
   return 'Понял. Сформулирую короче и по-человечески: давай чуть подробнее — что именно нужно сказать родителям и в каком контексте?';
 }
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
   app.listen(PORT, () => {
     console.log(`Server started on http://localhost:${PORT}`);
-    if (!API_KEY) {
-      console.log('OPENAI_API_KEY не задан — используется локальный режим ответов.');
+    if (!XAI_API_KEY) {
+      console.log('XAI_API_KEY не задан — используется локальный режим ответов.');
     }
   });
 } else {
