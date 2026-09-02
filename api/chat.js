@@ -1,9 +1,9 @@
 const https = require('https');
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const API_MODEL = process.env.GROQ_MODEL || 'deepseek-r1-distill-llama-70b';
-const API_HOST = 'api.groq.com';
-const API_PATH = '/openai/v1/chat/completions';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const API_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const API_HOST = 'generativelanguage.googleapis.com';
+const API_PATH = `/v1beta/models/${API_MODEL}:generateContent`;
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -53,36 +53,45 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
 
-    if (!GROQ_API_KEY) {
+    if (!GEMINI_API_KEY) {
       const lastUser = [...messages].reverse().find(m => m.role === 'user');
       const fallback = lastUser ? lastUser.content : '';
       const reply = heuristicReply(fallback, profile);
       return res.json({ reply });
     }
 
+    const systemPrompt = buildSystemPrompt(profile || {});
+    const contents = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
     const payload = JSON.stringify({
-      model: API_MODEL,
-      temperature: 0.7,
-      messages: [
-        { role: 'system', content: buildSystemPrompt(profile || {}) },
-        ...messages
-      ]
+      contents,
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 1024
+      }
     });
 
     const options = {
       hostname: API_HOST,
       port: 443,
-      path: API_PATH,
+      path: `${API_PATH}?key=${GEMINI_API_KEY}`,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
         'Content-Length': Buffer.byteLength(payload)
       }
     };
 
     const reply = await new Promise((resolve, reject) => {
-      const reqApi = https.request(options, (resp) => {
+      const reqApi = require('https').request(options, (resp) => {
         let data = '';
         resp.on('data', chunk => { data += chunk; });
         resp.on('end', () => {
@@ -92,7 +101,8 @@ module.exports = async (req, res) => {
               console.error('API error:', parsed.error);
               return reject(new Error('API недоступен'));
             }
-            resolve(parsed.choices?.[0]?.message?.content || '');
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            resolve(text);
           } catch (e) {
             console.error('Parse error', e, data);
             reject(e);

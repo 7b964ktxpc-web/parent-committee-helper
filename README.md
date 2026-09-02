@@ -28,8 +28,8 @@ vercel
 2. Загрузите файлы проекта.
 3. На https://vercel.com/new выберите этот репозиторий.
 4. В разделе **Environment Variables** добавьте:
-   - `GROQ_API_KEY` — ваш ключ Groq (https://console.groq.com/keys).
-   - `GROQ_MODEL` — (опционально) модель, по умолчанию `llama-3.3-70b-versatile`.
+   - `GEMINI_API_KEY` — ваш ключ Google Gemini (https://aistudio.google.com/app/apikey).
+   - `GEMINI_MODEL` — (опционально) модель, по умолчанию `gemini-2.0-flash`.
 5. Нажмите **Deploy**.
 
 Vercel сам подхватит `api/chat.js` как serverless-функцию и развернёт приложение.
@@ -42,9 +42,9 @@ Vercel сам подхватит `api/chat.js` как serverless-функцию 
 
 ## Какая модель
 
-По умолчанию: **Groq `llama-3.3-70b-versatile`** (или любая другая доступная модель через `GROQ_MODEL`).
+По умолчанию: **Google Gemini `gemini-2.0-flash`** (или любая другая доступная модель через `GEMINI_MODEL`).
 
-Это можно изменить переменной окружения `GROQ_MODEL` на любую доступную у вас модель (например, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`). Без ключа приложение работает в локальном режиме на простых эвристиках.
+Это можно изменить переменной окружения `GEMINI_MODEL` на любую доступную у вас модель (например, `gemini-1.5-pro`, `gemini-1.5-flash`). Без ключа приложение работает в локальном режиме на простых эвристиках.
 
 ## Что умеет
 
