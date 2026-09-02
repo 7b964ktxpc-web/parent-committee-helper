@@ -7,7 +7,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const API_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free';
+const API_MODEL = process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct:free';
 const API_HOST = 'openrouter.ai';
 const API_PATH = '/api/v1/chat/completions';
 
