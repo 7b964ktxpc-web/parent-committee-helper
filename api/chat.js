@@ -21,8 +21,17 @@ function pickModel() {
 
 function isRetryableError(err) {
   if (!err) return false;
+  let parsedCode = err.code;
+  if (!parsedCode && typeof err.message === 'string') {
+    try {
+      const parsed = JSON.parse(err.message);
+      parsedCode = parsed?.code;
+    } catch {
+      // ignore
+    }
+  }
   const msg = (err.message || '').toLowerCase();
-  return msg.includes('model_not_found') || msg.includes('decommissioned') || msg.includes('unavailable for free') || msg.includes('rate-limited') || msg.includes('429') || err.code === 429 || err.code === 404 || err.code === 400;
+  return msg.includes('model_not_found') || msg.includes('decommissioned') || msg.includes('unavailable for free') || msg.includes('rate-limited') || msg.includes('429') || parsedCode === 429 || parsedCode === 404 || parsedCode === 400;
 }
 
 function buildSystemPrompt(profile) {
