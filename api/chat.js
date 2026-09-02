@@ -1,9 +1,9 @@
 const https = require('https');
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || '';
-const API_HOST = 'openrouter.ai';
-const API_PATH = '/api/v1/chat/completions';
+const GOROUTER_API_KEY = process.env.GOROUTER_API_KEY || '';
+const GOROUTER_MODEL = process.env.GOROUTER_MODEL || '';
+const API_HOST = 'gorouter.app';
+const API_PATH = '/v1/chat/completions';
 
 const FREE_MODELS = [
   'poolside/laguna-s-2.1:free',
@@ -15,7 +15,7 @@ const FREE_MODELS = [
 ];
 
 function pickModel() {
-  if (OPENROUTER_MODEL) return OPENROUTER_MODEL;
+  if (GOROUTER_MODEL) return GOROUTER_MODEL;
   return FREE_MODELS[0];
 }
 
@@ -82,7 +82,7 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
 
-    if (!OPENROUTER_API_KEY) {
+    if (!GOROUTER_API_KEY) {
       const lastUser = [...messages].reverse().find(m => m.role === 'user');
       const fallback = lastUser ? lastUser.content : '';
       const reply = heuristicReply(fallback, profile);
@@ -95,7 +95,7 @@ module.exports = async (req, res) => {
       ...messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
     ];
 
-    const modelsToTry = OPENROUTER_MODEL ? [OPENROUTER_MODEL] : FREE_MODELS;
+    const modelsToTry = GOROUTER_MODEL ? [GOROUTER_MODEL] : FREE_MODELS;
     let lastErr = null;
 
     for (const model of modelsToTry) {
@@ -112,7 +112,7 @@ module.exports = async (req, res) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Authorization': `Bearer ${GOROUTER_API_KEY}`,
           'HTTP-Referer': 'https://parent-committee-helper.vercel.app',
           'X-Title': 'Parent Committee Helper',
           'Content-Length': Buffer.byteLength(payload)
