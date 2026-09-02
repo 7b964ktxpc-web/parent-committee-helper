@@ -6,10 +6,10 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
-const API_HOST = 'api.deepseek.com';
-const API_PATH = '/chat/completions';
+const HF_API_KEY = process.env.HF_API_KEY || '';
+const HF_MODEL = process.env.HF_MODEL || 'google/flan-t5-large';
+const API_HOST = 'api-inference.huggingface.co';
+const API_PATH = `/models/${HF_MODEL}`;
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -59,7 +59,7 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
 
-    if (!DEEPSEEK_API_KEY) {
+    if (!HF_API_KEY) {
       const lastUser = [...messages].reverse().find(m => m.role === 'user');
       const fallback = lastUser ? lastUser.content : '';
       const reply = heuristicReply(fallback, profile);
@@ -67,15 +67,19 @@ app.post('/api/chat', async (req, res) => {
     }
 
     const systemPrompt = buildSystemPrompt(profile || {});
-    const apiMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
-    ];
+    const conversation = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`)
+      .join('\n');
+    const prompt = `${systemPrompt}\n\n${conversation}\nAssistant:`;
 
     const payload = JSON.stringify({
-      model: DEEPSEEK_MODEL,
-      temperature: 0.7,
-      messages: apiMessages
+      inputs: prompt,
+      parameters: {
+        max_new_tokens: 1024,
+        temperature: 0.7,
+        return_full_text: false
+      }
     });
 
     const options = {
@@ -85,7 +89,7 @@ app.post('/api/chat', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        'Authorization': `Bearer ${HF_API_KEY}`,
         'Content-Length': Buffer.byteLength(payload)
       }
     };
@@ -101,7 +105,7 @@ app.post('/api/chat', async (req, res) => {
               console.error('API error:', parsed.error);
               return reject(new Error(JSON.stringify(parsed.error)));
             }
-            const text = parsed.choices?.[0]?.message?.content || '';
+            const text = Array.isArray(parsed) ? (parsed[0]?.generated_text || '') : (parsed.generated_text || '');
             resolve(text);
           } catch (e) {
             console.error('Parse error', e, data);
@@ -153,8 +157,8 @@ if (require.main === module) {
   });
   app.listen(PORT, () => {
     console.log(`Server started on http://localhost:${PORT}`);
-    if (!DEEPSEEK_API_KEY) {
-      console.log('DEEPSEEK_API_KEY не задан — используется локальный режим ответов.');
+    if (!HF_API_KEY) {
+      console.log('HF_API_KEY не задан — используется локальный режим ответов.');
     }
   });
 } else {

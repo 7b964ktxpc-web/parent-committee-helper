@@ -28,8 +28,8 @@ vercel
 2. Загрузите файлы проекта.
 3. На https://vercel.com/new выберите этот репозиторий.
 4. В разделе **Environment Variables** добавьте:
-   - `GOROUTER_API_KEY` — ваш ключ (https://gorouter.app/).
-   - `GOROUTER_MODEL` — (опционально) модель. Если не задать, приложение само переключается по бесплатным моделям.
+   - `HF_API_KEY` — ваш ключ Hugging Face (https://huggingface.co/settings/tokens).
+   - `HF_MODEL` — (опционально) модель, по умолчанию `google/flan-t5-large`.
 5. Нажмите **Deploy**.
 
 Vercel сам подхватит `api/chat.js` как serverless-функцию и развернёт приложение.
@@ -42,19 +42,15 @@ Vercel сам подхватит `api/chat.js` как serverless-функцию 
 
 ## Какая модель
 
-По умолчанию: **бесплатные модели через gorouter.app** (авто-fallback).
+По умолчанию: **Hugging Face `google/flan-t5-large`** (бесплатный Inference API).
 
-Приложение пробует модели по очереди:
-- `poolside/laguna-s-2.1:free`
-- `nousresearch/hermes-3-llama-3.1-405b:free`
-- `mistralai/mistral-7b-instruct:free`
-- `meta-llama/llama-4-maverick:free`
-- `google/gemini-2.0-flash-exp:free`
-- `deepseek/deepseek-r1-0528:free`
+Доступные бесплатные модели:
+- `google/flan-t5-large` (по умолчанию)
+- `mistralai/Mistral-7B-Instruct-v0.1`
+- `HuggingFaceH4/zephyr-7b-beta`
+- `meta-llama/Llama-2-7b-chat-hf`
 
-Если одна модель недоступна или rate-limited — автоматически пробует следующую.
-
-Можно задать конкретную модель переменной `GOROUTER_MODEL`. Без ключа приложение работает в локальном режиме на простых эвристиках.
+Можно изменить переменной окружения `HF_MODEL`. Без ключа приложение работает в локальном режиме на простых эвристиках.
 
 ## Что умеет
 
