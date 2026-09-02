@@ -81,35 +81,31 @@ module.exports = async (req, res) => {
     }
 
     const systemPrompt = buildSystemPrompt(profile || {});
-    const contents = messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
+    const apiMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
+    ];
 
     const modelsToTry = OPENROUTER_MODEL ? [OPENROUTER_MODEL] : FREE_MODELS;
     let lastErr = null;
 
     for (const model of modelsToTry) {
       const payload = JSON.stringify({
-        contents,
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1024
-        }
+        model,
+        temperature: 0.7,
+        messages: apiMessages
       });
 
       const options = {
         hostname: API_HOST,
         port: 443,
-        path: `/v1beta/models/${model}:generateContent?key=${OPENROUTER_API_KEY}`,
+        path: API_PATH,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://parent-committee-helper.vercel.app',
+          'X-Title': 'Parent Committee Helper',
           'Content-Length': Buffer.byteLength(payload)
         }
       };
@@ -126,8 +122,7 @@ module.exports = async (req, res) => {
                   console.error('API error:', parsed.error);
                   return reject(new Error(JSON.stringify(parsed.error)));
                 }
-                const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                resolve(text);
+                resolve(parsed.choices?.[0]?.message?.content || '');
               } catch (e) {
                 console.error('Parse error', e, data);
                 reject(e);
