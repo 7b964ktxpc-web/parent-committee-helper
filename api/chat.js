@@ -1,7 +1,7 @@
 const https = require('https');
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const API_MODEL = process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct:free';
+const API_MODEL = process.env.OPENROUTER_MODEL || 'poolside/laguna-s-2.1:free';
 const API_HOST = 'openrouter.ai';
 const API_PATH = '/api/v1/chat/completions';
 
