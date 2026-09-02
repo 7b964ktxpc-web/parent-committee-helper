@@ -140,11 +140,31 @@ function heuristicReply(userText, profile) {
 }
 
 app.get('*', (req, res) => {
-  let filePath = path.join(PUBLIC_DIR, req.path === '/' ? '/index.html' : req.path);
-  if (!fs.existsSync(filePath)) {
+  let reqPath = req.path === '/' ? '/index.html' : req.path;
+  let filePath = path.join(PUBLIC_DIR, reqPath);
+
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
     filePath = path.join(PUBLIC_DIR, 'index.html');
   }
-  res.sendFile(filePath);
+
+  try {
+    const content = fs.readFileSync(filePath);
+    const ext = path.extname(filePath);
+    const types = {
+      '.html': 'text/html; charset=utf-8',
+      '.css': 'text/css; charset=utf-8',
+      '.js': 'application/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
+      '.png': 'image/png',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon'
+    };
+    res.setHeader('Content-Type', types[ext] || 'application/octet-stream');
+    res.send(content);
+  } catch (e) {
+    console.error('Static file error', e);
+    res.status(500).send('Static file error');
+  }
 });
 
 module.exports = serverless(app, {
