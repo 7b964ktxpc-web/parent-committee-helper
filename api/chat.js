@@ -1,16 +1,9 @@
-const serverless = require('serverless-http');
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-
-const app = express();
-app.use(express.json({ limit: '1mb' }));
+const https = require('https');
 
 const XAI_API_KEY = process.env.XAI_API_KEY || '';
 const API_MODEL = process.env.XAI_MODEL || 'grok-2-latest';
 const API_HOST = 'api.x.ai';
 const API_PATH = '/v1/chat/completions';
-const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -53,7 +46,7 @@ ${context || 'Контекст пока не задан.'}
 - Отвечай на русском.`;
 }
 
-app.post('/api/chat', async (req, res) => {
+module.exports = async (req, res) => {
   try {
     const { messages, profile } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -88,36 +81,40 @@ app.post('/api/chat', async (req, res) => {
       }
     };
 
-    const reqApi = require('https').request(options, (resp) => {
-      let data = '';
-      resp.on('data', chunk => { data += chunk; });
-      resp.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.error) {
-            console.error('API error:', parsed.error);
-            return res.status(502).json({ error: 'API недоступен' });
+    const reply = await new Promise((resolve, reject) => {
+      const reqApi = https.request(options, (resp) => {
+        let data = '';
+        resp.on('data', chunk => { data += chunk; });
+        resp.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.error) {
+              console.error('API error:', parsed.error);
+              return reject(new Error('API недоступен'));
+            }
+            resolve(parsed.choices?.[0]?.message?.content || '');
+          } catch (e) {
+            console.error('Parse error', e, data);
+            reject(e);
           }
-          const reply = parsed.choices?.[0]?.message?.content || '';
-          res.json({ reply });
-        } catch (e) {
-          console.error('Parse error', e, data);
-          res.status(502).json({ error: 'API недоступен' });
-        }
+        });
       });
+
+      reqApi.on('error', (e) => {
+        console.error('Request error', e);
+        reject(e);
+      });
+
+      reqApi.write(payload);
+      reqApi.end();
     });
 
-    reqApi.on('error', (e) => {
-      console.error('Request error', e);
-      res.status(502).json({ error: 'API недоступен' });
-    });
-    reqApi.write(payload);
-    reqApi.end();
+    res.json({ reply: reply || 'Что-то не получилось ответить. Попробуй ещё раз.' });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Внутренняя ошибка' });
+    res.status(502).json({ error: 'API недоступен' });
   }
-});
+};
 
 function heuristicReply(userText, profile) {
   const t = (userText || '').trim();
@@ -138,36 +135,3 @@ function heuristicReply(userText, profile) {
   }
   return 'Понял. Сформулирую короче и по-человечески: давай чуть подробнее — что именно нужно сказать родителям и в каком контексте?';
 }
-
-app.get('*', (req, res) => {
-  let reqPath = req.path === '/' ? '/index.html' : req.path;
-  let filePath = path.join(PUBLIC_DIR, reqPath);
-
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    filePath = path.join(PUBLIC_DIR, 'index.html');
-  }
-
-  try {
-    const content = fs.readFileSync(filePath);
-    const ext = path.extname(filePath);
-    const types = {
-      '.html': 'text/html; charset=utf-8',
-      '.css': 'text/css; charset=utf-8',
-      '.js': 'application/javascript; charset=utf-8',
-      '.json': 'application/json; charset=utf-8',
-      '.png': 'image/png',
-      '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon'
-    };
-    res.setHeader('Content-Type', types[ext] || 'application/octet-stream');
-    res.send(content);
-  } catch (e) {
-    console.error('Static file error', e);
-    res.status(500).send('Static file error');
-  }
-});
-
-module.exports = serverless(app, {
-  request: (req) => req,
-  response: (res) => res
-});
