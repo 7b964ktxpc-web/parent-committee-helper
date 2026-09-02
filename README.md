@@ -28,8 +28,8 @@ vercel
 2. Загрузите файлы проекта.
 3. На https://vercel.com/new выберите этот репозиторий.
 4. В разделе **Environment Variables** добавьте:
-   - `GEMINI_API_KEY` — ваш ключ Google Gemini (https://aistudio.google.com/app/apikey).
-   - `GEMINI_MODEL` — (опционально) модель, по умолчанию `gemini-2.0-flash`.
+   - `OPENROUTER_API_KEY` — ваш ключ OpenRouter (https://openrouter.ai/keys).
+   - `OPENROUTER_MODEL` — (опционально) модель, по умолчанию `meta-llama/llama-4-maverick:free`.
 5. Нажмите **Deploy**.
 
 Vercel сам подхватит `api/chat.js` как serverless-функцию и развернёт приложение.
@@ -42,9 +42,14 @@ Vercel сам подхватит `api/chat.js` как serverless-функцию 
 
 ## Какая модель
 
-По умолчанию: **Google Gemini `gemini-2.0-flash`** (или любая другая доступная модель через `GEMINI_MODEL`).
+По умолчанию: **OpenRouter `meta-llama/llama-4-maverick:free`** (бесплатная).
 
-Это можно изменить переменной окружения `GEMINI_MODEL` на любую доступную у вас модель (например, `gemini-1.5-pro`, `gemini-1.5-flash`). Без ключа приложение работает в локальном режиме на простых эвристиках.
+Доступные бесплатные модели на OpenRouter:
+- `meta-llama/llama-4-maverick:free`
+- `google/gemini-2.0-flash-exp:free`
+- `nousresearch/hermes-3-llama-3.1-405b:free`
+
+Можно изменить переменной окружения `OPENROUTER_MODEL` на любую доступную у вас модель. Без ключа приложение работает в локальном режиме на простых эвристиках.
 
 ## Что умеет
 

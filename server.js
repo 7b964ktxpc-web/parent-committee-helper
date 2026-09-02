@@ -6,10 +6,10 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const API_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-const API_HOST = 'generativelanguage.googleapis.com';
-const API_PATH = `/v1beta/models/${API_MODEL}:generateContent`;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+const API_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-4-maverick:free';
+const API_HOST = 'openrouter.ai';
+const API_PATH = '/api/v1/chat/completions';
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -59,39 +59,32 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
 
-    if (!GEMINI_API_KEY) {
+    if (!OPENROUTER_API_KEY) {
       const lastUser = [...messages].reverse().find(m => m.role === 'user');
       const fallback = lastUser ? lastUser.content : '';
       const reply = heuristicReply(fallback, profile);
       return res.json({ reply });
     }
 
-    const systemPrompt = buildSystemPrompt(profile || {});
-    const contents = messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
-
     const payload = JSON.stringify({
-      contents,
-      systemInstruction: {
-        parts: [{ text: systemPrompt }]
-      },
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 1024
-      }
+      model: API_MODEL,
+      temperature: 0.7,
+      messages: [
+        { role: 'system', content: buildSystemPrompt(profile || {}) },
+        ...messages
+      ]
     });
 
     const options = {
       hostname: API_HOST,
       port: 443,
-      path: `${API_PATH}?key=${GEMINI_API_KEY}`,
+      path: API_PATH,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://parent-committee-helper.vercel.app',
+        'X-Title': 'Parent Committee Helper',
         'Content-Length': Buffer.byteLength(payload)
       }
     };
@@ -106,7 +99,7 @@ app.post('/api/chat', async (req, res) => {
             console.error('API error:', parsed.error);
             return res.status(502).json({ error: 'API недоступен' });
           }
-          const reply = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const reply = parsed.choices?.[0]?.message?.content || '';
           res.json({ reply });
         } catch (e) {
           console.error('Parse error', e, data);
@@ -155,7 +148,7 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server started on http://localhost:${PORT}`);
     if (!XAI_API_KEY) {
-      console.log('GEMINI_API_KEY не задан — используется локальный режим ответов.');
+      console.log('OPENROUTER_API_KEY не задан — используется локальный режим ответов.');
     }
   });
 } else {
