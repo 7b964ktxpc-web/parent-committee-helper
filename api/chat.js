@@ -1,7 +1,7 @@
 const https = require('https');
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const API_MODEL = process.env.GROQ_MODEL || 'gemma2-9b-it';
+const API_MODEL = process.env.GROQ_MODEL || 'deepseek-r1-distill-llama-70b';
 const API_HOST = 'api.groq.com';
 const API_PATH = '/openai/v1/chat/completions';
 
