@@ -1,9 +1,9 @@
 const https = require('https');
 
-const XAI_API_KEY = process.env.XAI_API_KEY || '';
-const API_MODEL = process.env.XAI_MODEL || 'grok-vision-beta';
-const API_HOST = 'api.x.ai';
-const API_PATH = '/v1/chat/completions';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const API_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const API_HOST = 'api.groq.com';
+const API_PATH = '/openai/v1/chat/completions';
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -53,7 +53,7 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
 
-    if (!XAI_API_KEY) {
+    if (!GROQ_API_KEY) {
       const lastUser = [...messages].reverse().find(m => m.role === 'user');
       const fallback = lastUser ? lastUser.content : '';
       const reply = heuristicReply(fallback, profile);
@@ -76,7 +76,7 @@ module.exports = async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XAI_API_KEY}`,
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
         'Content-Length': Buffer.byteLength(payload)
       }
     };

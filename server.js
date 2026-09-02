@@ -6,10 +6,10 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const XAI_API_KEY = process.env.XAI_API_KEY || '';
-const API_MODEL = process.env.XAI_MODEL || 'grok-vision-beta';
-const API_HOST = 'api.x.ai';
-const API_PATH = '/v1/chat/completions';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const API_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const API_HOST = 'api.groq.com';
+const API_PATH = '/openai/v1/chat/completions';
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -59,7 +59,7 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
 
-    if (!XAI_API_KEY) {
+    if (!GROQ_API_KEY) {
       const lastUser = [...messages].reverse().find(m => m.role === 'user');
       const fallback = lastUser ? lastUser.content : '';
       const reply = heuristicReply(fallback, profile);
@@ -82,7 +82,7 @@ app.post('/api/chat', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XAI_API_KEY}`,
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
         'Content-Length': Buffer.byteLength(payload)
       }
     };
@@ -146,7 +146,7 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server started on http://localhost:${PORT}`);
     if (!XAI_API_KEY) {
-      console.log('XAI_API_KEY не задан — используется локальный режим ответов.');
+      console.log('GROQ_API_KEY не задан — используется локальный режим ответов.');
     }
   });
 } else {
