@@ -1,0 +1,14 @@
+{
+  "name": "parent-committee-helper",
+  "version": "1.0.0",
+  "description": "Личный чат-помощник для родительского комитета",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "serverless-http": "^4.0.0"
+  }
+}

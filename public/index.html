@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#f7f7f8" />
+<title>Помощник родительского комитета</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Экран первого запуска / настройки при старте -->
+  <section id="onboarding" class="screen onboarding hidden">
+    <div class="onboarding-card">
+      <div class="onboarding-avatar">👋</div>
+      <h1>Давайте познакомимся</h1>
+      <p class="muted">Настрой помощника один раз — дальше он будет учитывать эту информацию в работе.</p>
+
+      <div class="form">
+        <label>Как вас зовут?
+          <input type="text" id="ob_userName" placeholder="Например, Мария" autocomplete="given-name" />
+        </label>
+
+        <label>Как назвать помощника?
+          <input type="text" id="ob_assistantName" placeholder="Например, Саша" />
+        </label>
+
+        <label>Название группы
+          <input type="text" id="ob_groupName" placeholder="Например, «Подсолнушки»" />
+        </label>
+
+        <label>Детский сад
+          <input type="text" id="ob_kindergarten" placeholder="Например, детский сад №12" />
+        </label>
+
+        <label>Ваша роль
+          <select id="ob_role">
+            <option>Родитель</option>
+            <option>Член родительского комитета</option>
+            <option>Председатель комитета</option>
+          </select>
+        </label>
+
+        <div class="style-block">
+          <label class="block-label">Какой стиль общения вам ближе?</label>
+          <div class="chips" id="ob_style">
+            <button type="button" class="chip" data-val="простой">Простой</button>
+            <button type="button" class="chip" data-val="дружелюбный">Дружелюбный</button>
+            <button type="button" class="chip" data-val="уверенный">Уверенный</button>
+            <button type="button" class="chip" data-val="неформальный">Неформальный</button>
+            <button type="button" class="chip" data-val="нейтральный">Нейтральный</button>
+          </div>
+          <p class="hint">Можно выбрать несколько. По умолчанию: простой, живой, уверенный, доброжелательный.</p>
+        </div>
+
+        <label>Что мне важно знать о вашей группе?
+          <textarea id="ob_extraContext" rows="5" placeholder="Например: в группе 24 ребёнка, деньги обычно переводят на карту, подарки обсуждаем заранее, на прошлый сбор на тетради денег не хватило"></textarea>
+          <span class="hint">Этот контекст помощник будет помнить и учитывать.</span>
+        </label>
+
+        <button id="ob_save" class="primary">Готово</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Основной чат -->
+  <section id="chat-screen" class="screen chat-screen hidden">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title" id="assistantTitle">Помощник</div>
+        <div class="topbar-sub">Помощник родительского комитета</div>
+      </div>
+      <button id="openSettings" class="icon-btn" aria-label="Настройки">⚙️</button>
+    </header>
+
+    <main class="messages" id="messages" aria-live="polite"></main>
+
+    <div class="quick-actions" id="quickActions">
+      <button class="qa" data-text="Напиши сообщение в родительский чат: ">✍️ Написать сообщение</button>
+      <button class="qa" data-text="Ответь на это в чате: ">💬 Ответить</button>
+      <button class="qa" data-text="Подготовь сообщение про сбор денег: ">💰 Сбор денег</button>
+      <button class="qa" data-text="Поддержи человека в чате: ">👍 Поддержать</button>
+      <button class="qa" data-text="Сделай сообщение для голосования: ">🗳️ Голосование</button>
+    </div>
+
+    <footer class="composer">
+      <textarea
+        id="input"
+        rows="1"
+        placeholder="Напишите, что нужно сделать…"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="sentences"
+        spellcheck="true"></textarea>
+      <button id="send" class="send-btn" aria-label="Отправить">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M3.4 20.6l18-8-18-8 3.2 8.7 8.8 1.3-8.8 1.3z" fill="currentColor"/>
+        </svg>
+      </button>
+    </footer>
+  </section>
+
+  <!-- Панель настроек (на десктопе — сайдбар, на мобиле — отдельный экран) -->
+  <aside id="settings" class="settings hidden">
+    <div class="settings-backdrop" data-close></div>
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2>Настройки</h2>
+        <button class="icon-btn" data-close aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="settings-body">
+        <section>
+          <h3>Мой профиль</h3>
+          <label>Имя <input type="text" id="set_userName" /></label>
+          <label>Название группы <input type="text" id="set_groupName" /></label>
+          <label>Детский сад <input type="text" id="set_kindergarten" /></label>
+          <label>Моя роль
+            <select id="set_role">
+              <option>Родитель</option>
+              <option>Член родительского комитета</option>
+              <option>Председатель комитета</option>
+            </select>
+          </label>
+        </section>
+
+        <section>
+          <h3>Мой помощник</h3>
+          <label>Имя помощника <input type="text" id="set_assistantName" /></label>
+          <div class="style-block">
+            <label class="block-label">Стиль общения</label>
+            <div class="chips" id="set_style">
+              <button type="button" class="chip" data-val="простой">Простой</button>
+              <button type="button" class="chip" data-val="дружелюбный">Дружелюбный</button>
+              <button type="button" class="chip" data-val="уверенный">Уверенный</button>
+              <button type="button" class="chip" data-val="неформальный">Неформальный</button>
+              <button type="button" class="chip" data-val="нейтральный">Нейтральный</button>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h3>Контекст группы</h3>
+          <label class="block-label">Что мне важно знать о вашей группе?</label>
+          <textarea id="set_extraContext" rows="6" placeholder="Сколько детей, как собираете деньги, кто что делает, какие вопросы уже обсуждались и т. д."></textarea>
+        </section>
+
+        <section class="actions">
+          <button id="saveSettings" class="primary">Сохранить</button>
+          <button id="resetSettings" class="ghost">Сбросить настройки</button>
+          <button id="clearHistory" class="ghost danger">Очистить переписку</button>
+        </section>
+      </div>
+    </div>
+  </aside>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
