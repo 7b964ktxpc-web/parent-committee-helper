@@ -7,7 +7,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const XAI_API_KEY = process.env.XAI_API_KEY || '';
-const API_MODEL = process.env.XAI_MODEL || 'grok-beta';
+const API_MODEL = process.env.XAI_MODEL || 'grok-2';
 const API_HOST = 'api.x.ai';
 const API_PATH = '/v1/chat/completions';
 
