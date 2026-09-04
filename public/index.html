@@ -58,7 +58,8 @@
     <header class="topbar">
       <div class="topbar-left">
         <div class="topbar-title" id="assistantTitle">Помощник</div>
-        <div class="topbar-sub" id="modelStatus">Помощник родительского комитета · AI готов к работе</div>
+        <div class="topbar-sub" id="profileSummary">Помощник родительского комитета · AI готов к работе</div>
+        <div class="topbar-model" id="modelStatus" aria-live="polite"></div>
       </div>
       <button id="openSettings" class="icon-btn" aria-label="Настройки">⚙️</button>
     </header>
@@ -79,7 +80,7 @@
     <footer class="composer">
       <textarea id="input" rows="1" placeholder="Напишите, что нужно сделать…" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="true"></textarea>
       <button id="send" class="send-btn" aria-label="Отправить">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3.4 20.6l18-8-18-8 3.2 8.7 8.8 1.3-8.8 1.3z" fill="currentColor"/></svg>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3.4 20.6l18-8-18-8 3.2 8.7 8.8 1.3-8.8 1.3-3.2 8.7z" fill="currentColor"/></svg>
       </button>
     </footer>
   </section>
