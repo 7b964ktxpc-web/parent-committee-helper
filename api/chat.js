@@ -105,6 +105,14 @@ function requestYandex(payload) {
   });
 }
 
+function extractMoneyFacts(history) {
+  const allUserText = history.filter(m => m.role === 'user').map(m => m.content).join(' ');
+  const amount = allUserText.match(/(?:собрать|сдавать|сдать|сумм[аеы]?|по)[^\d]{0,30}(\d{2,6})\s*(?:руб(?:лей|ля|ль)?|₽)?/i)?.[1]
+    || allUserText.match(/(\d{2,6})\s*(?:руб(?:лей|ля|ль)?|₽)/i)?.[1];
+  const target = allUserText.match(/(?:\d{2,6})\s*(?:руб(?:лей|ля|ль)?|₽)[^.!?\n]{0,80}?\s+на\s+([^.!?\n]{2,80})/i)?.[1]?.trim();
+  return { amount, target, allUserText };
+}
+
 function cleanReply(text, replyMode, history) {
   let result = String(text || '').trim();
   if (!replyMode) return result;
@@ -112,13 +120,20 @@ function cleanReply(text, replyMode, history) {
   result = result.replace(/\[[^\]]{0,120}\]/g, '').replace(/\s{2,}/g, ' ').trim();
   result = result.replace(/(?:Если хотите|Если нужно|При необходимости),?\s*(?:я\s+)?(?:могу|смогу)\s+(?:уточнить|узнать|прислать|скинуть|написать)[^.?!]*[.?!]?/gi, '').trim();
 
+  const { amount, target, allUserText } = extractMoneyFacts(history);
+
+  // Если модель обрезала цель («рассчитана на .») или добавила неподтверждённое большинство,
+  // не пытаемся чинить фразу кусками — собираем короткий ответ только из известных фактов.
+  const brokenTarget = /(?:рассчитан[ао]?|предназначен[ао]?|ид[её]т)\s+на\s*[.!?]?$|\bна\s*[.!?]/i.test(result);
+  const inventedMajority = /большинств(?:о|а)\s+(?:поддержит|поддержит|соглас|решит)|если\s+большинство/i.test(result);
+  if (amount && target && (brokenTarget || inventedMajority)) {
+    return `${amount} рублей — на ${target}. Если считаете, что сумма большая, можем обсудить вариант поменьше.`;
+  }
+
   // Если модель ушла в мета-объяснение, возвращаем её к нормальному сообщению родителю.
   if (/в исходных данных|исходных данных|в запросе не указано|информации не указано|нет информации|я не знаю|данных не указано/i.test(result)) {
-    const allUserText = history.filter(m => m.role === 'user').map(m => m.content).join(' ');
-    const amount = allUserText.match(/(?:собрать|сдавать|сдать|сумм[аеы]?)[^\d]{0,30}(\d{2,6})\s*(?:руб(?:лей|ля)?|₽)?/i)?.[1] || allUserText.match(/(\d{2,6})\s*(?:руб(?:лей|ля)?|₽)/i)?.[1];
-    const target = allUserText.match(/\d{2,6}\s*(?:руб(?:лей|ля)?|₽)[^.!?\n]{0,80}?\s+на\s+([^.!?\n]{2,80})/i)?.[1]?.trim();
     if (amount && target) {
-      return `${amount} рублей — на ${target}. Если для вас сумма большая, можем обсудить вариант поменьше.`;
+      return `${amount} рублей — на ${target}. Если считаете, что сумма большая, можем обсудить вариант поменьше.`;
     }
     result = result.replace(/(?:Причина|Сумма|Детали)[^.?!]{0,120}(?:не указана|нет информации|отсутствует)[.?!]?/gi, '').trim();
   }
