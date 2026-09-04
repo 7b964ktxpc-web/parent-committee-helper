@@ -6,10 +6,13 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const HF_API_KEY = process.env.HF_API_KEY || '';
-const HF_MODEL = process.env.HF_MODEL || 'google/flan-t5-large';
-const API_HOST = 'api-inference.huggingface.co';
-const API_PATH = `/models/${HF_MODEL}`;
+const YANDEX_API_KEY = process.env.YANDEX_API_KEY || '';
+const YANDEX_IAM_TOKEN = process.env.YANDEX_IAM_TOKEN || '';
+const YANDEX_FOLDER_ID = process.env.YANDEX_FOLDER_ID || '';
+const YANDEX_MODEL_URI = process.env.YANDEX_MODEL_URI || (YANDEX_FOLDER_ID ? `gpt://${YANDEX_FOLDER_ID}/aliceai-llm` : '');
+const YANDEX_FLASH_MODEL_URI = process.env.YANDEX_FLASH_MODEL_URI || (YANDEX_FOLDER_ID ? `gpt://${YANDEX_FOLDER_ID}/aliceai-llm-flash` : '');
+const YANDEX_API_HOST = 'llm.api.cloud.yandex.net';
+const YANDEX_API_PATH = '/foundationModels/v1/completion';
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -17,150 +20,72 @@ function buildSystemPrompt(profile) {
   const group = profile?.groupName || 'не указана';
   const kindergarten = profile?.kindergarten || 'не указан';
   const role = profile?.role || 'Родитель';
-  const style = (profile?.style && profile.style.length)
-    ? profile.style.join(', ')
-    : 'простой, живой, уверенный, доброжелательный';
+  const style = (profile?.style && profile.style.length) ? profile.style.join(', ') : 'простой, живой, уверенный, доброжелательный';
   const context = profile?.extraContext || '';
+  return `Ты — ${assistantName}, личный помощник ${name} по родительскому комитету группы «${group}» детского сада «${kindergarten}».
 
-  return `Ты — ${assistantName}, личный чат-помощник для ${name}. ${name} — ${role} в родительском комитете группы «${group}» детского сада «${kindergarten}».
+Помогай писать и редактировать сообщения в чат, отвечать на возражения, спокойно разруливать спорные ситуации, готовить сборы денег, объяснять расходы, организовывать мероприятия, списки и напоминания.
 
-Твоя единственная задача — помогать ${name} с любыми вопросами, связанными с родительским комитетом: писать и редактировать сообщения в родительский чат, отвечать на возражения, снимать конфликты, мотивировать родителей, готовить сборы денег, объяснять расходы, формулировать мысли.
+Пиши как живой человек. Не начинай с «Конечно!», «С удовольствием!», «Отличная идея!» и подобных фраз. Если нужен текст для родительского чата — сразу давай готовый текст. Стиль пользователя: ${style}. Если пользователь пишет коротко — отвечай коротко. Не раздувай ответ. По умолчанию один лучший вариант. Не меняй смысл черновика. В конфликте не переходи на личности и не используй канцелярит. Для сбора денег говори спокойно и уверенно, без давления. Если денег ранее не хватило, говори именно о доборе суммы. Отвечай на русском.
 
-ПРИНЦИПЫ ОБЩЕНИЯ:
-- Разговаривай как знакомый человек, а не как ИИ. Никаких «Конечно!», «С удовольствием!», «Отличная идея!», «Давайте разберёмся!», «Я с радостью подготовлю…». Просто отвечай по делу.
-- Если просят написать сообщение в чат родителей — текст должен звучать так, будто его написал живой родитель. Не секретарь, не юрист, не воспитатель, не рекламщик, не ИИ.
-- Стиль общения, который нравится ${name}: ${style}.
-- Можно использовать живые обороты: «Я тоже поддерживаю», «Думаю, лучше так», «Согласен», «Я за 👍», «Давайте закроем этот вопрос».
-- Если ${name} пишет коротко — отвечай коротко. Если разговорно — разговорно. Не исправляй ошибки без нужды. Не читай лекций.
-- Не повторяй мысль несколько раз, не раздувай текст ради объёма. Если достаточно одной фразы — дай одну.
-- По умолчанию давай ОДИН лучший вариант. Только если ситуация реально требует выбора, можно дать два: мягче / увереннее.
-- Когда просишь «Как бы ты сам написал» — выбери один максимально естественный вариант.
-- Когда просят «Сделай по-человечески» — убери официальность, шаблоны, сократи, сделай разговорным. Не объясняй, что именно изменил.
-- Когда редактируешь черновик ${name} — не меняй смысл, сохраняй манеру. Правь только то, что реально мешает.
-- Мотивируй родителей, но не выпрашивай. Объясняй необходимость спокойно и уверенно. Никаких «Пожалуйста, помогите», «Кто сможет», «Будем очень благодарны».
-- Если ранее уже собирали деньги и суммы не хватило — не пиши как про новый сбор, а именно про добирание необходимой суммы.
-- В конфликтах сначала пойми: что произошло, кто что предлагает, в чём проблема, к какому решению прийти. Предложи естественный ответ. Не спорь ради спора, не дави, не переходи на личности. Никакой психологической казённой лексики типа «Я понимаю ваши чувства».
-- Если ситуация неоднозначна — не задавай десять вопросов. Сделай разумное предположение по контексту. Если без важной информации реально нельзя — задай один короткий вопрос.
+ПОСТОЯННЫЙ КОНТЕКСТ:
+${context || 'Контекст пока не задан.'}`;
+}
 
-КОНТЕКСТ О ГРУППЕ (используй как постоянную память):
-${context || 'Контекст пока не задан.'}
-
-ФОРМАТ ОТВЕТА:
-- Если просят готовый текст в чат — выдавай сразу готовый текст, без преамбул типа «Вот отличный вариант».
-- Не выдавай пять почти одинаковых вариантов.
-- Не используй markdown-заголовки и списки, когда пишешь текст «как для родителей». Только для своих пояснений ${name}.
-- Отвечай на русском.`;
+function requestYandex(modelUri, messages) {
+  return new Promise((resolve, reject) => {
+    const auth = YANDEX_IAM_TOKEN ? `Bearer ${YANDEX_IAM_TOKEN}` : (YANDEX_API_KEY ? `Api-Key ${YANDEX_API_KEY}` : '');
+    if (!auth || !modelUri) return reject(new Error('Yandex AI is not configured'));
+    const payload = JSON.stringify({ modelUri, completionOptions: { stream: false, temperature: 0.65, maxTokens: '1200' }, messages });
+    const reqApi = https.request({ hostname: YANDEX_API_HOST, port: 443, path: YANDEX_API_PATH, method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth, 'Content-Length': Buffer.byteLength(payload) } }, resp => {
+      let data = '';
+      resp.on('data', chunk => { data += chunk; });
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (resp.statusCode < 200 || resp.statusCode >= 300 || parsed.error) return reject(new Error(parsed.message || parsed.error || `Yandex HTTP ${resp.statusCode}`));
+          resolve({ text: parsed?.result?.alternatives?.[0]?.message?.text || '', usage: parsed?.result?.usage || null });
+        } catch (e) { reject(e); }
+      });
+    });
+    reqApi.on('error', reject);
+    reqApi.write(payload);
+    reqApi.end();
+  });
 }
 
 app.post('/api/chat', async (req, res) => {
   try {
     const { messages, profile } = req.body || {};
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'Нет сообщений' });
-    }
-
-    if (!HF_API_KEY) {
-      const lastUser = [...messages].reverse().find(m => m.role === 'user');
-      const fallback = lastUser ? lastUser.content : '';
-      const reply = heuristicReply(fallback, profile);
-      return res.json({ reply });
-    }
-
-    const systemPrompt = buildSystemPrompt(profile || {});
-    const conversation = messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`)
-      .join('\n');
-    const prompt = `${systemPrompt}\n\n${conversation}\nAssistant:`;
-
-    const payload = JSON.stringify({
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 1024,
-        temperature: 0.7,
-        return_full_text: false
-      }
-    });
-
-    const options = {
-      hostname: API_HOST,
-      port: 443,
-      path: API_PATH,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${HF_API_KEY}`,
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
-
-    const reply = await new Promise((resolve, reject) => {
-      const reqApi = https.request(options, (resp) => {
-        let data = '';
-        resp.on('data', chunk => { data += chunk; });
-        resp.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) {
-              console.error('API error:', parsed.error);
-              return reject(new Error(JSON.stringify(parsed.error)));
-            }
-            const text = Array.isArray(parsed) ? (parsed[0]?.generated_text || '') : (parsed.generated_text || '');
-            resolve(text);
-          } catch (e) {
-            console.error('Parse error', e, data);
-            reject(e);
-          }
-        });
-      });
-
-      reqApi.on('error', (e) => {
-        console.error('Request error', e);
-        reject(e);
-      });
-
-      reqApi.write(payload);
-      reqApi.end();
-    });
-
-    res.json({ reply: reply || 'Что-то не получилось ответить. Попробуй ещё раз.' });
+    if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: 'Нет сообщений' });
+    const clean = messages.filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-24);
+    const text = clean.map(m => m.content).join(' ');
+    const complex = text.length > 7000 || /проанализ|разберись|подробно|сравни|спланируй|документ|конфликт|несоглас/i.test(text);
+    const model = !complex && YANDEX_FLASH_MODEL_URI ? YANDEX_FLASH_MODEL_URI : YANDEX_MODEL_URI;
+    const result = await requestYandex(model, [{ role: 'system', text: buildSystemPrompt(profile || {}) }, ...clean.map(m => ({ role: m.role, text: m.content }))]);
+    if (!result.text.trim()) throw new Error('Empty model response');
+    return res.json({ reply: result.text.trim(), model: model.includes('flash') ? 'flash' : 'llm', usage: result.usage });
   } catch (e) {
     console.error(e);
-    res.status(502).json({ error: 'API недоступен' });
+    const last = [...(req.body?.messages || [])].reverse().find(m => m.role === 'user');
+    if (!YANDEX_API_KEY && !YANDEX_IAM_TOKEN) return res.json({ reply: heuristicReply(last?.content || ''), model: 'demo' });
+    return res.status(502).json({ error: 'Не удалось получить ответ от Alice AI' });
   }
 });
 
-function heuristicReply(userText, profile) {
-  const t = (userText || '').trim();
-  const group = profile?.groupName ? ` в нашей группе` : '';
+function heuristicReply(text) {
+  const t = (text || '').trim();
   if (!t) return 'Напиши, что нужно сделать — помогу сформулировать.';
-
-  if (/сбор|деньг|пропис|тетрад|подарк|экскурс/i.test(t)) {
-    return `Ребят, по ${t.replace(/^./, c => c.toLowerCase())} — собрать нужно немного, но без этого детям не обойтись. Кто ещё не скинул — добавьте, пожалуйста, свою часть. Скину ссылку на перевод в личке${group}.`;
-  }
-  if (/ответ|возраж/i.test(t)) {
-    return 'Понимаю опасения. Но тут всё просто: это нужно детям, сумма небольшая, и если каждый скинет свою часть — вопрос закроем сразу и больше к нему возвращаться не будем.';
-  }
-  if (/поддерж/i.test(t)) {
-    return 'Я тоже поддерживаю 👍 Лучше сделать сейчас и закрыть тему, чем потом снова возвращаться.';
-  }
-  if (/голосов/i.test(t)) {
-    return 'Предлагаю так: кто «за» — ставьте 👍, кто против — напишите причину. До вечера подведём итог и дальше уже действуем.';
-  }
-  return 'Понял. Сформулирую короче и по-человечески: давай чуть подробнее — что именно нужно сказать родителям и в каком контексте?';
+  if (/сбор|деньг|подарк|экскурс/i.test(t)) return 'Ребят, по этому вопросу давайте закроем всё спокойно. Кто ещё не перевёл свою часть — добавьте, пожалуйста, чтобы мы смогли всё организовать.';
+  if (/ответ|возраж|почему/i.test(t)) return 'Я бы ответил спокойно: «Понимаю вопрос. Давайте посмотрим по ситуации и решим, как будет удобнее всем, без лишних споров».';
+  if (/голосован/i.test(t)) return 'Предлагаю так: кто за — ставьте 👍, кто против — напишите коротко почему. Вечером подведём итог и решим дальше.';
+  return 'Понял. Напиши, что именно нужно сказать или сделать — помогу сформулировать по-человечески.';
 }
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  });
-  app.listen(PORT, () => {
-    console.log(`Server started on http://localhost:${PORT}`);
-    if (!HF_API_KEY) {
-      console.log('HF_API_KEY не задан — используется локальный режим ответов.');
-    }
-  });
+  app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+  app.listen(PORT, () => console.log(`Parent Committee Helper started on port ${PORT}`));
 } else {
   module.exports = app;
 }
