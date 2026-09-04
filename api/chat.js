@@ -1,38 +1,8 @@
 const https = require('https');
 
-const HF_API_KEY = process.env.HF_API_KEY || '';
-const HF_MODEL = process.env.HF_MODEL || 'google/flan-t5-large';
-const API_HOST = 'api-inference.huggingface.co';
-const API_PATH = `/models/${HF_MODEL}`;
-
-const FREE_MODELS = [
-  'poolside/laguna-s-2.1:free',
-  'nousresearch/hermes-3-llama-3.1-405b:free',
-  'mistralai/mistral-7b-instruct:free',
-  'meta-llama/llama-4-maverick:free',
-  'google/gemini-2.0-flash-exp:free',
-  'deepseek/deepseek-r1-0528:free'
-];
-
-function pickModel() {
-  if (GOROUTER_MODEL) return GOROUTER_MODEL;
-  return FREE_MODELS[0];
-}
-
-function isRetryableError(err) {
-  if (!err) return false;
-  let parsedCode = err.code;
-  if (!parsedCode && typeof err.message === 'string') {
-    try {
-      const parsed = JSON.parse(err.message);
-      parsedCode = parsed?.code;
-    } catch {
-      // ignore
-    }
-  }
-  const msg = (err.message || '').toLowerCase();
-  return msg.includes('model_not_found') || msg.includes('decommissioned') || msg.includes('unavailable for free') || msg.includes('rate-limited') || msg.includes('429') || parsedCode === 429 || parsedCode === 404 || parsedCode === 400;
-}
+const API_KEY = process.env.YANDEX_API_KEY || '';
+const FOLDER_ID = process.env.YANDEX_FOLDER_ID || '';
+const BASE_URL = 'https://ai.api.cloud.yandex.net/v1/chat/completions';
 
 function buildSystemPrompt(profile) {
   const name = profile?.userName || 'друг';
@@ -40,135 +10,119 @@ function buildSystemPrompt(profile) {
   const group = profile?.groupName || 'не указана';
   const kindergarten = profile?.kindergarten || 'не указан';
   const role = profile?.role || 'Родитель';
-  const style = (profile?.style && profile.style.length)
-    ? profile.style.join(', ')
-    : 'простой, живой, уверенный, доброжелательный';
-  const context = profile?.extraContext || '';
+  const style = profile?.style?.length ? profile.style.join(', ') : 'простой, живой, уверенный, доброжелательный';
+  const context = profile?.extraContext || 'Контекст пока не задан.';
 
-  return `Ты — ${assistantName}, личный чат-помощник для ${name}. ${name} — ${role} в родительском комитете группы «${group}» детского сада «${kindergarten}».
+  return `Ты — ${assistantName}, личный помощник ${name} по делам родительского комитета.
+${name} — ${role} в группе «${group}» детского сада «${kindergarten}».
 
-Твоя единственная задача — помогать ${name} с любыми вопросами, связанными с родительским комитетом: писать и редактировать сообщения в родительский чат, отвечать на возражения, снимать конфликты, мотивировать родителей, готовить сборы денег, объяснять расходы, формулировать мысли.
+Помогай писать и редактировать сообщения родителям, отвечать на возражения, спокойно решать конфликты, организовывать сборы денег, мероприятия, голосования и списки.
 
-ПРИНЦИПЫ ОБЩЕНИЯ:
-- Разговаривай как знакомый человек, а не как ИИ. Никаких «Конечно!», «С удовольствием!», «Отличная идея!», «Давайте разберёмся!», «Я с радостью подготовлю…». Просто отвечай по делу.
-- Если просят написать сообщение в чат родителей — текст должен звучать так, будто его написал живой родитель. Не секретарь, не юрист, не воспитатель, не рекламщик, не ИИ.
-- Стиль общения, который нравится ${name}: ${style}.
-- Можно использовать живые обороты: «Я тоже поддерживаю», «Думаю, лучше так», «Согласен», «Я за 👍», «Давайте закроем этот вопрос».
-- Если ${name} пишет коротко — отвечай коротко. Если разговорно — разговорно. Не исправляй ошибки без нужды. Не читай лекций.
-- Не повторяй мысль несколько раз, не раздувай текст ради объёма. Если достаточно одной фразы — дай одну.
-- По умолчанию давай ОДИН лучший вариант. Только если ситуация реально требует выбора, можно дать два: мягче / увереннее.
-- Когда просишь «Как бы ты сам написал» — выбери один максимально естественный вариант.
-- Когда просят «Сделай по-человечески» — убери официальность, шаблоны, сократи, сделай разговорным. Не объясняй, что именно изменил.
-- Когда редактируешь черновик ${name} — не меняй смысл, сохраняй манеру. Правь только то, что реально мешает.
-- Мотивируй родителей, но не выпрашивай. Объясняй необходимость спокойно и уверенно. Никаких «Пожалуйста, помогите», «Кто сможет», «Будем очень благодарны».
-- Если ранее уже собирали деньги и суммы не хватило — не пиши как про новый сбор, а именно про добирание необходимой суммы.
-- В конфликтах сначала пойми: что произошло, кто что предлагает, в чём проблема, к какому решению прийти. Предложи естественный ответ. Не спорь ради спора, не дави, не переходи на личности. Никакой психологической казённой лексики типа «Я понимаю ваши чувства».
-- Если ситуация неоднозначна — не задавай десять вопросов. Сделай разумное предположение по контексту. Если без важной информации реально нельзя — задай один короткий вопрос.
+Главное: говори как обычный живой человек, а не как ИИ. Не начинай ответы с «Конечно!», «С удовольствием!», «Давайте разберёмся!» и подобных фраз. Не пиши канцеляритом и не раздувай ответ.
+Стиль ${name}: ${style}.
+Если нужен текст для родительского чата — сразу дай готовый текст, без пояснений вокруг него.
+По умолчанию давай один лучший вариант. Если действительно полезно — можно дать мягкий и более уверенный вариант.
+Сохраняй смысл черновика пользователя и не исправляй его манеру без необходимости.
+В конфликте не занимайся психологической лекцией: предложи спокойную, человеческую формулировку.
+Если информации не хватает, задай максимум один короткий вопрос, но сначала попробуй сделать разумное предположение.
 
-КОНТЕКСТ О ГРУППЕ (используй как постоянную память):
-${context || 'Контекст пока не задан.'}
+Контекст группы:
+${context}
 
-ФОРМАТ ОТВЕТА:
-- Если просят готовый текст в чат — выдавай сразу готовый текст, без преамбул типа «Вот отличный вариант».
-- Не выдавай пять почти одинаковых вариантов.
-- Не используй markdown-заголовки и списки, когда пишешь текст «как для родителей». Только для своих пояснений ${name}.
-- Отвечай на русском.`;
+Отвечай на русском.`;
+}
+
+function isComplex(text, messages) {
+  const t = String(text || '').toLowerCase();
+  const complexWords = /конфликт|спор|возраж|почему|объясни|разбер|проанализ|сравни|документ|несколько|вариант|сложн|ситуац|решение|аргумент|перепис|истори|подробн/;
+  return t.length > 700 || complexWords.test(t) || messages.length > 8;
+}
+
+function modelFor(text, messages) {
+  return `gpt://${FOLDER_ID}/${isComplex(text, messages) ? 'aliceai-llm' : 'aliceai-llm-flash'}`;
+}
+
+function requestYandex(payload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const req = https.request(BASE_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Api-Key ${API_KEY}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }, resp => {
+      let data = '';
+      resp.on('data', chunk => { data += chunk; });
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (resp.statusCode < 200 || resp.statusCode >= 300) {
+            return reject(new Error(parsed?.error?.message || parsed?.message || `Yandex API ${resp.statusCode}`));
+          }
+          const text = parsed?.choices?.[0]?.message?.content || '';
+          if (!text) return reject(new Error('Пустой ответ модели'));
+          resolve(text);
+        } catch (e) {
+          reject(new Error('Некорректный ответ Yandex AI Studio'));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
 }
 
 module.exports = async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Метод не поддерживается' });
+
   try {
     const { messages, profile } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
 
-    if (!HF_API_KEY) {
-      const lastUser = [...messages].reverse().find(m => m.role === 'user');
-      const fallback = lastUser ? lastUser.content : '';
-      const reply = heuristicReply(fallback, profile);
-      return res.json({ reply });
+    if (!API_KEY || !FOLDER_ID) {
+      return res.status(503).json({ error: 'AI_NOT_CONFIGURED' });
     }
 
-    const systemPrompt = buildSystemPrompt(profile || {});
-    const conversation = messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`)
-      .join('\n');
-    const prompt = `${systemPrompt}\n\n${conversation}\nAssistant:`;
+    const userMessages = messages.filter(m => m.role === 'user' || m.role === 'assistant').slice(-20);
+    const lastUser = [...userMessages].reverse().find(m => m.role === 'user')?.content || '';
+    const model = modelFor(lastUser, userMessages);
 
-    const payload = JSON.stringify({
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 1024,
+    const responseMessages = [
+      { role: 'system', content: buildSystemPrompt(profile || {}) },
+      ...userMessages.map(m => ({ role: m.role, content: String(m.content || '') }))
+    ];
+
+    let reply;
+    try {
+      reply = await requestYandex({
+        model,
+        messages: responseMessages,
         temperature: 0.7,
-        return_full_text: false
-      }
-    });
-
-    const options = {
-      hostname: API_HOST,
-      port: 443,
-      path: API_PATH,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${HF_API_KEY}`,
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
-
-    const reply = await new Promise((resolve, reject) => {
-      const reqApi = require('https').request(options, (resp) => {
-        let data = '';
-        resp.on('data', chunk => { data += chunk; });
-        resp.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) {
-              console.error('API error:', parsed.error);
-              return reject(new Error(JSON.stringify(parsed.error)));
-            }
-            const text = Array.isArray(parsed) ? (parsed[0]?.generated_text || '') : (parsed.generated_text || '');
-            resolve(text);
-          } catch (e) {
-            console.error('Parse error', e, data);
-            reject(e);
-          }
+        max_tokens: 900
+      });
+    } catch (firstError) {
+      // Если Flash временно недоступна, автоматически пробуем флагманскую модель.
+      if (model.endsWith('/aliceai-llm-flash')) {
+        const fallbackModel = `gpt://${FOLDER_ID}/aliceai-llm`;
+        reply = await requestYandex({
+          model: fallbackModel,
+          messages: responseMessages,
+          temperature: 0.7,
+          max_tokens: 900
         });
-      });
+        return res.json({ reply, model: fallbackModel.split('/').pop() });
+      }
+      throw firstError;
+    }
 
-      reqApi.on('error', (e) => {
-        console.error('Request error', e);
-        reject(e);
-      });
-
-      reqApi.write(payload);
-      reqApi.end();
-    });
-
-    res.json({ reply: reply || 'Что-то не получилось ответить. Попробуй ещё раз.' });
-  } catch (e) {
-    console.error(e);
-    res.status(502).json({ error: 'API недоступен' });
+    return res.json({ reply, model: model.split('/').pop() });
+  } catch (error) {
+    console.error('Alice AI error:', error?.message || error);
+    return res.status(502).json({ error: 'AI_UNAVAILABLE' });
   }
 };
-
-function heuristicReply(userText, profile) {
-  const t = (userText || '').trim();
-  const group = profile?.groupName ? ` в нашей группе` : '';
-  if (!t) return 'Напиши, что нужно сделать — помогу сформулировать.';
-
-  if (/сбор|деньг|пропис|тетрад|подарк|экскурс/i.test(t)) {
-    return `Ребят, по ${t.replace(/^./, c => c.toLowerCase())} — собрать нужно немного, но без этого детям не обойтись. Кто ещё не скинул — добавьте, пожалуйста, свою часть. Скину ссылку на перевод в личке${group}.`;
-  }
-  if (/ответ|возраж/i.test(t)) {
-    return 'Понимаю опасения. Но тут всё просто: это нужно детям, сумма небольшая, и если каждый скинет свою часть — вопрос закроем сразу и больше к нему возвращаться не будем.';
-  }
-  if (/поддерж/i.test(t)) {
-    return 'Я тоже поддерживаю 👍 Лучше сделать сейчас и закрыть тему, чем потом снова возвращаться.';
-  }
-  if (/голосов/i.test(t)) {
-    return 'Предлагаю так: кто «за» — ставьте 👍, кто против — напишите причину. До вечера подведём итог и дальше уже действуем.';
-  }
-  return 'Понял. Сформулирую короче и по-человечески: давай чуть подробнее — что именно нужно сказать родителям и в каком контексте?';
-}
