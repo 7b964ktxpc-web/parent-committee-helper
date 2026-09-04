@@ -5,7 +5,7 @@ const FOLDER_ID = process.env.YANDEX_FOLDER_ID || '';
 const BASE_URL = 'https://ai.api.cloud.yandex.net/v1/chat/completions';
 
 function buildSystemPrompt(profile) {
-  const name = profile?.userName || 'друг';
+  const name = profile?.userName || 'пользователь';
   const assistantName = profile?.assistantName || 'Помощник';
   const group = profile?.groupName || 'не указана';
   const kindergarten = profile?.kindergarten || 'не указан';
@@ -16,15 +16,17 @@ function buildSystemPrompt(profile) {
   return `Ты — ${assistantName}, личный помощник ${name} по делам родительского комитета.
 ${name} — ${role} в группе «${group}» детского сада «${kindergarten}».
 
-Помогай писать и редактировать сообщения родителям, отвечать на возражения, спокойно решать конфликты, организовывать сборы денег, мероприятия, голосования и списки.
+Твоя задача — экономить человеку время. Помогай писать сообщения родителям, отвечать на резкие сообщения, организовывать сборы денег и мероприятия, делать голосования и списки, а также разбирать спорные ситуации.
 
-Главное: говори как обычный живой человек, а не как ИИ. Не начинай ответы с «Конечно!», «С удовольствием!», «Давайте разберёмся!» и подобных фраз. Не пиши канцеляритом и не раздувай ответ.
-Стиль ${name}: ${style}.
-Если нужен текст для родительского чата — сразу дай готовый текст, без пояснений вокруг него.
-По умолчанию давай один лучший вариант. Если действительно полезно — можно дать мягкий и более уверенный вариант.
-Сохраняй смысл черновика пользователя и не исправляй его манеру без необходимости.
-В конфликте не занимайся психологической лекцией: предложи спокойную, человеческую формулировку.
-Если информации не хватает, задай максимум один короткий вопрос, но сначала попробуй сделать разумное предположение.
+ГЛАВНОЕ ПРАВИЛО: пиши как нормальный человек из родительского чата. Не звучишь как корпоративный бот или консультант. Не начинай с «Конечно!», «С удовольствием!», «Давайте разберёмся!» и подобных шаблонов. Не используй канцелярит, длинные вступления и лишние пояснения.
+
+Стиль пользователя: ${style}.
+Если просят текст для чата — сразу дай готовый текст, который можно скопировать и отправить.
+По умолчанию давай один лучший вариант. Второй вариант предлагай только если он реально отличается по тону.
+Сохраняй смысл и важные детали пользователя. Не выдумывай суммы, даты, имена, реквизиты, решения группы или факты.
+Если данных не хватает, сначала сделай разумный вариант с нейтральным местом для уточнения вроде [сумма] или [дата]. Задавай вопрос только если без него невозможно выполнить задачу.
+В конфликте не читай лекцию по психологии. Сначала дай конкретную спокойную формулировку ответа.
+Для сбора денег не дави на родителей и не стыди тех, кто ещё не перевёл. Для голосований формулируй варианты максимально однозначно.
 
 Контекст группы:
 ${context}
@@ -64,11 +66,12 @@ function requestYandex(payload) {
           const text = parsed?.choices?.[0]?.message?.content || '';
           if (!text) return reject(new Error('Пустой ответ модели'));
           resolve(text);
-        } catch (e) {
+        } catch {
           reject(new Error('Некорректный ответ Yandex AI Studio'));
         }
       });
     });
+    req.setTimeout(25000, () => req.destroy(new Error('Таймаут запроса к AI')));
     req.on('error', reject);
     req.write(body);
     req.end();
@@ -83,44 +86,34 @@ module.exports = async (req, res) => {
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'Нет сообщений' });
     }
-
     if (!API_KEY || !FOLDER_ID) {
       return res.status(503).json({ error: 'AI_NOT_CONFIGURED' });
     }
 
-    const userMessages = messages.filter(m => m.role === 'user' || m.role === 'assistant').slice(-20);
+    const userMessages = messages
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant'))
+      .slice(-20)
+      .map(m => ({ role: m.role, content: String(m.content || '').slice(0, 6000) }));
     const lastUser = [...userMessages].reverse().find(m => m.role === 'user')?.content || '';
     const model = modelFor(lastUser, userMessages);
-
     const responseMessages = [
       { role: 'system', content: buildSystemPrompt(profile || {}) },
-      ...userMessages.map(m => ({ role: m.role, content: String(m.content || '') }))
+      ...userMessages
     ];
 
     let reply;
     try {
-      reply = await requestYandex({
-        model,
-        messages: responseMessages,
-        temperature: 0.7,
-        max_tokens: 900
-      });
+      reply = await requestYandex({ model, messages: responseMessages, temperature: 0.7, max_tokens: 900 });
     } catch (firstError) {
-      // Если Flash временно недоступна, автоматически пробуем флагманскую модель.
       if (model.endsWith('/aliceai-llm-flash')) {
         const fallbackModel = `gpt://${FOLDER_ID}/aliceai-llm`;
-        reply = await requestYandex({
-          model: fallbackModel,
-          messages: responseMessages,
-          temperature: 0.7,
-          max_tokens: 900
-        });
-        return res.json({ reply, model: fallbackModel.split('/').pop() });
+        reply = await requestYandex({ model: fallbackModel, messages: responseMessages, temperature: 0.7, max_tokens: 900 });
+        return res.json({ reply: reply.trim(), model: 'aliceai-llm' });
       }
       throw firstError;
     }
 
-    return res.json({ reply, model: model.split('/').pop() });
+    return res.json({ reply: reply.trim(), model: model.split('/').pop() });
   } catch (error) {
     console.error('Alice AI error:', error?.message || error);
     return res.status(502).json({ error: 'AI_UNAVAILABLE' });
